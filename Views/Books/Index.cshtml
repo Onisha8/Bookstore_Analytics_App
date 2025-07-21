@@ -1,0 +1,184 @@
+﻿@model IEnumerable<BookApp.Models.Book>
+@{
+    ViewData["Title"] = "Library Dashboard";
+
+    // 1) Read back the two incoming query parameters
+    var currentSort = ViewBag.CurrentSort as string ?? "title_asc";
+    var currentFilter = ViewBag.CurrentFilter as string ?? "all";
+    // 2) Build the sort dropdown items
+    var sortList = new List<SelectListItem>
+    {
+        new("Title Ascending",  "title_asc"),
+        new("Title Descending",  "title_desc"),
+        new("Author Ascending", "author_asc"),
+        new("Author Descending", "author_desc"),
+        new("Rating Ascending", "rating_asc"),
+        new("Rating Descending", "rating_desc")
+    };
+    // Mark the selected sort
+    var sortItem = sortList.SingleOrDefault(x => x.Value == currentSort);
+    if (sortItem != null)
+    {
+        sortItem.Selected = true;
+    }
+
+    // 3) Build the filter dropdown items
+    var filterList = new List<SelectListItem>
+    {
+        new("All",       "all"),
+        new("Liked",     "liked"),
+        new("Not Liked","notliked")
+    };
+    // Mark the selected filter
+    var filterItem = filterList.SingleOrDefault(x => x.Value == currentFilter);
+    if (filterItem != null)
+    {
+        filterItem.Selected = true;
+    }
+}
+
+<div class="container py-5">
+
+    <!-- Header + Add button -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="section-title">All Books</h2>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#bookModal">
+            + Add New Book
+        </button>
+    </div>
+
+    <!-- ▼ Sort & Filter form ▼ -->
+    <form asp-action="Index" method="get" class="mb-4 d-flex align-items-center">
+        <label for="sortOrder" class="me-2 mb-0"><strong>Sort by:</strong></label>
+        <select name="sortOrder"
+                id="sortOrder"
+                asp-items="sortList"
+                class="form-select me-4"
+                style="max-width:200px;"
+                onchange="this.form.submit()">
+            <option value="">-- choose --</option>
+        </select>
+
+        <label for="filter" class="me-2 mb-0"><strong>Filter:</strong></label>
+        <select name="filter"
+                id="filter"
+                asp-items="filterList"
+                class="form-select me-2"
+                style="max-width:150px;"
+                onchange="this.form.submit()">
+            <option value="">-- choose --</option>
+        </select>
+
+        <noscript>
+            <button type="submit" class="btn btn-secondary btn-sm ms-2">Apply</button>
+        </noscript>
+    </form>
+
+    <!-- Cards grid -->
+    <div class="row">
+        @foreach (var book in Model)
+        {
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card book-card h-100"
+                     data-id="@book.Id"
+                     data-title="@book.Title"
+                     data-author="@book.Author"
+                     data-genre="@book.Genre"
+                     data-rating="@book.Rating"
+                     data-review="@book.Review"
+                     data-liked="@(book.Liked.ToString().ToLower())">
+
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">@book.Title</h5>
+                        <p class="card-text flex-grow-1"><em>@book.Author</em></p>
+                        <p class="mb-1"><strong>Genre:</strong> @book.Genre</p>
+                        <p class="mb-1">
+                            <strong>Rating:</strong>
+                            @for (int i = 1; i <= book.Rating; i++)
+                            {
+                                <i class="fa-solid fa-star text-warning"></i>
+                            }
+                            @for (int i = book.Rating + 1; i <= 5; i++)
+                            {
+                                <i class="fa-regular fa-star text-muted"></i>
+                            }
+                        </p>
+
+                        <p class="card-text"><strong>Review:</strong> @book.Review</p>
+                        <div class="mt-auto">
+                            <label class="form-check-label me-2">Liked:</label>
+                            <input type="checkbox" class="form-check-input" disabled @(book.Liked ? "checked" : "") />
+                        </div>
+                    </div>
+
+                    <div class="card-footer d-flex justify-content-between">
+                        <a asp-action="Edit" asp-route-id="@book.Id"
+                           class="btn btn-sm btn-outline-secondary">Edit</a>
+                        <a asp-action="Delete" asp-route-id="@book.Id"
+                           class="btn btn-sm btn-outline-danger">Delete</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Add New Book Modal -->
+<div class="modal fade" id="bookModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Book</h5>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form asp-action="Create" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="Title" class="form-label">Title</label>
+                        <input type="text" name="Title" id="Title" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="Author" class="form-label">Author</label>
+                        <input type="text" name="Author" id="Author" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="Genre" class="form-label">Genre</label>
+                        <input type="text" name="Genre" id="Genre" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="Rating" class="form-label">Rating (1–5)</label>
+                        <input type="number" name="Rating" id="Rating" min="1" max="5" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="Review" class="form-label">Review</label>
+                        <textarea name="Review" id="Review" class="form-control"></textarea>
+                    </div>
+                    <div class="form-check mb-3">
+                        @* Post "true" when checked *@
+                        <input type="checkbox"
+                               name="Liked"
+                               id="Liked"
+                               value="true"
+                               class="form-check-input" />
+                        @* Always post false if unchecked *@
+                        <input type="hidden" name="Liked" value="false" />
+
+                        <label for="Liked" class="form-check-label">Liked</label>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success">Save</button>
+                    <button type="button" class="btn btn-secondary"
+                            data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>

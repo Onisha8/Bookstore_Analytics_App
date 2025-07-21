@@ -1,0 +1,15 @@
+﻿<!-- File: Views/Books/Search.cshtml -->
+@{
+    ViewData["Title"] = "Search Books";
+}
+
+<h1>Search Books</h1>
+<form asp-action="SearchResults" method="post" class="d-flex mb-3">
+    @Html.AntiForgeryToken()
+    <input name="query"
+           class="form-control me-2"
+           placeholder="Search books..."
+           value="@(ViewBag.Query ?? "")" />
+
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
