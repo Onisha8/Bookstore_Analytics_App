@@ -8,28 +8,6 @@ using Microsoft.Extensions.Logging;
 
 namespace BookApp.Services;
 
-//public class GoogleBooksService : IGoogleBooksService
-//{
-//    private readonly HttpClient _http;
-//    private readonly string? _apiKey;
-
-//    public GoogleBooksService(HttpClient http, IConfiguration cfg)
-//    {
-//        _http = http;
-//        _apiKey = cfg.GetSection("GoogleBooks")["ApiKey"];
-//    }
-
-//    public async Task<GoogleBooksResponse?> SearchAsync(string query)
-//    {
-//        if (string.IsNullOrWhiteSpace(query))
-//            throw new ArgumentException("Query must not be empty", nameof(query));
-//        var relative = $"volumes?q={Uri.EscapeDataString(query)}";
-//        if (!string.IsNullOrEmpty(_apiKey))
-//            relative += $"&key={_apiKey}";
-
-//        return await _http.GetFromJsonAsync<GoogleBooksResponse>(relative);
-//    }
-//}
 public class GoogleBooksService : IGoogleBooksService
 {
     private readonly HttpClient _http;
