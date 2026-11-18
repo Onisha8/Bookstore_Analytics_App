@@ -16,6 +16,7 @@ builder.WebHost.UseUrls("http://localhost:5000");
 builder.Services.AddDbContext<BookLyticsDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("BookLytics")));
 builder.Services.AddScoped<IBookRepository, EfBookRepository>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["GoogleBooks:ApiBaseUrl"]!);
