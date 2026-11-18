@@ -12,3 +12,8 @@ obj/
 ## OS files
 .DS_Store
 Thumbs.db
+
+## Local SQLite database (recreated from Data/Seed on first run)
+*.db
+*.db-shm
+*.db-wal

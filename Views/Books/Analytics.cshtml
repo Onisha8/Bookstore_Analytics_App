@@ -1,152 +1,184 @@
-﻿@model IEnumerable<BookApp.Models.Book>
+﻿@model BookApp.Models.LibraryAnalytics
+@using System.Linq
 @using System.Text.Json
 
 @{
     ViewData["Title"] = "Analytics";
+    var topGenre = Model.Genres.FirstOrDefault();
+    var bestGenre = Model.TopRatedGenres.FirstOrDefault();
+    var chartData = new
+    {
+        genres = Model.Genres.Select(g => new { label = g.Genre, value = g.Count }),
+        topRated = Model.TopRatedGenres.Select(g => new { label = g.Genre, value = g.AverageRating }),
+        authors = Model.TopAuthors.Select(a => new { label = a.Author, value = a.Count }),
+        ratings = Model.RatingDistribution.Select((count, i) => new { label = $"{i + 1}★", value = count })
+    };
 }
 
-<div class="container py-5" style="max-height: 80vh; overflow-y: auto;">
-    <h2 class="mb-4">Book Analytics</h2>
+<style>
+    .analytics { --series-1: #2a78d6; --ink-2: #52514e; --grid: #e6e5e0; }
+    .analytics .kpi { border: 1px solid var(--grid); border-radius: .75rem; padding: 1rem 1.25rem; background: #fff; height: 100%; }
+    .analytics .kpi-label { color: var(--ink-2); font-size: .85rem; margin-bottom: .25rem; }
+    .analytics .kpi-value { font-size: 1.75rem; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .analytics .chart-card { border: 1px solid var(--grid); border-radius: .75rem; padding: 1.25rem; background: #fff; height: 100%; }
+    .analytics .chart-card h3 { font-size: 1.1rem; margin-bottom: .25rem; }
+    .analytics .chart-card p { color: var(--ink-2); font-size: .875rem; }
+    .analytics .chart-box { position: relative; height: 280px; }
+    .analytics table td.num, .analytics table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+</style>
 
-    <!-- Chart 1: Books by Genre (Bar) -->
-    <div class="chart-container mb-5 pb-4">
-        <h3>Books by Genre</h3>
-        <p>See how your books are distributed across genres.</p>
-        <canvas id="genreChart"></canvas>
-    </div>
+<div class="container py-5 analytics">
+    <h2 class="mb-1">Book Analytics</h2>
+    <p class="text-muted mb-4">All figures are computed server-side with LINQ queries that EF Core translates to SQL.</p>
 
-    <!-- Chart 2: Top 5 Authors by Book Count (Line) -->
-    <div class="chart-container mb-5 pb-4">
-        <h3>Top 5 Authors by Book Count</h3>
-        <p>This line chart ranks your most prolific authors.</p>
-        <canvas id="authorChart"></canvas>
-    </div>
+    @if (!Model.HasData)
+    {
+        <div class="alert alert-info">
+            Your library is empty. <a asp-action="Create">Add a book</a> to see your reading analytics.
+        </div>
+    }
+    else
+    {
+        <!-- KPI tiles -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md"><div class="kpi"><div class="kpi-label">Books</div><div class="kpi-value">@Model.TotalBooks</div></div></div>
+            <div class="col-6 col-md"><div class="kpi"><div class="kpi-label">Average rating</div><div class="kpi-value">@Model.AverageRating.ToString("0.00") ★</div></div></div>
+            <div class="col-6 col-md"><div class="kpi"><div class="kpi-label">Liked</div><div class="kpi-value">@Model.LikedPercent.ToString("0.#")%</div></div></div>
+            <div class="col-6 col-md"><div class="kpi"><div class="kpi-label">Genres</div><div class="kpi-value">@Model.GenreCount</div></div></div>
+            <div class="col-12 col-md"><div class="kpi"><div class="kpi-label">Authors</div><div class="kpi-value">@Model.AuthorCount</div></div></div>
+        </div>
 
-    <!-- Chart 3: Rating Distribution (Pie, Smaller) -->
-    <div class="chart-container mb-5 pb-4" style="max-width:400px;">
-        <h3>Rating Distribution</h3>
-        <p>Breakdown of your book ratings from 1 to 5 stars.</p>
-        <canvas id="ratingChart"></canvas>
-    </div>
+        <!-- Insights -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h3 class="h5">Insights</h3>
+                <ul class="mb-0">
+                    @if (topGenre is not null)
+                    {
+                        <li>You read the most <strong>@topGenre.Genre</strong> (@topGenre.Count books, @((100.0 * topGenre.Count / Model.TotalBooks).ToString("0.#"))% of your library).</li>
+                    }
+                    @if (bestGenre is not null)
+                    {
+                        <li>Your highest-rated genre is <strong>@bestGenre.Genre</strong>, averaging @bestGenre.AverageRating.ToString("0.00") ★ across @bestGenre.Count books.</li>
+                    }
+                    @if (Model.AvgRatingLiked is double liked && Model.AvgRatingNotLiked is double notLiked)
+                    {
+                        <li>Books you liked average <strong>@liked.ToString("0.00") ★</strong> vs. @notLiked.ToString("0.00") ★ for the rest (a difference of @((liked - notLiked).ToString("+0.00;-0.00;0.00")) stars).</li>
+                    }
+                </ul>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="chart-card">
+                    <h3>Books by genre</h3>
+                    <p>Number of books in each genre, most-read first.</p>
+                    <div class="chart-box" style="height:@(Math.Max(280, Model.Genres.Count * 26))px"><canvas id="genreChart" aria-label="Books by genre" role="img"></canvas></div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="chart-card">
+                    <h3>Highest-rated genres</h3>
+                    <p>Average rating per genre (genres with at least @BookApp.Services.AnalyticsService.MinBooksForGenreRanking books).</p>
+                    <div class="chart-box"><canvas id="topRatedChart" aria-label="Highest-rated genres" role="img"></canvas></div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="chart-card">
+                    <h3>Top 5 authors</h3>
+                    <p>Authors you've read the most books by.</p>
+                    <div class="chart-box"><canvas id="authorChart" aria-label="Top 5 authors" role="img"></canvas></div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="chart-card">
+                    <h3>Rating distribution</h3>
+                    <p>How many books you gave each star rating.</p>
+                    <div class="chart-box"><canvas id="ratingChart" aria-label="Rating distribution" role="img"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table view (also the accessible fallback for the charts) -->
+        <div class="chart-card">
+            <h3>Genre breakdown</h3>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr><th>Genre</th><th class="num">Books</th><th class="num">Avg rating</th><th class="num">Liked</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var g in Model.Genres)
+                        {
+                            <tr>
+                                <td>@g.Genre</td>
+                                <td class="num">@g.Count</td>
+                                <td class="num">@g.AverageRating.ToString("0.00")</td>
+                                <td class="num">@g.LikedPercent.ToString("0.#")%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          const books = @Html.Raw(JsonSerializer.Serialize(
-        Model,
-        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
-      ));
+    @if (Model.HasData)
+    {
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const data = @Html.Raw(JsonSerializer.Serialize(chartData));
+                const css = getComputedStyle(document.querySelector('.analytics'));
+                const series = css.getPropertyValue('--series-1').trim();
+                const ink = css.getPropertyValue('--ink-2').trim();
+                const grid = css.getPropertyValue('--grid').trim();
 
-          const baseOptions = {
-            responsive: true,
-            animation: { duration: 2000, easing: 'easeOutBounce' },
-            plugins: {
-              legend: { display: true, position: 'top', labels: { padding: 20 } },
-              tooltip: { enabled: true }
-            }
-          };
+                Chart.defaults.color = ink;
+                Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
 
-          // ==== Chart 1: Bar (Genre) ====
-          const genreCounts = {};
-          books.forEach(b => {
-            genreCounts[b.genre] = (genreCounts[b.genre] || 0) + 1;
-          });
-          const genres = Object.keys(genreCounts);
-          const counts = genres.map(g => genreCounts[g]);
-
-          new Chart(
-            document.getElementById('genreChart').getContext('2d'),
-            {
-              type: 'bar',
-              data: {
-                labels: genres,
-                datasets: [{
-                  label: 'Number of Books',
-                  data: counts
-                }]
-              },
-              options: {
-                ...baseOptions,
-                scales: {
-                  x: { title: { display: true, text: 'Genre' } },
-                  y: { beginAtZero: true, title: { display: true, text: 'Count' } }
+                function bar(id, rows, { horizontal = true, valueLabel = 'Books', max } = {}) {
+                    const valueAxis = {
+                        beginAtZero: true, max,
+                        grid: { color: grid }, border: { display: false },
+                        ticks: { precision: valueLabel === 'Books' ? 0 : undefined }
+                    };
+                    const categoryAxis = { grid: { display: false }, border: { color: grid } };
+                    new Chart(document.getElementById(id), {
+                        type: 'bar',
+                        data: {
+                            labels: rows.map(r => r.label),
+                            datasets: [{
+                                label: valueLabel,
+                                data: rows.map(r => r.value),
+                                backgroundColor: series,
+                                borderRadius: 4,
+                                borderSkipped: 'start',
+                                maxBarThickness: 28
+                            }]
+                        },
+                        options: {
+                            indexAxis: horizontal ? 'y' : 'x',
+                            maintainAspectRatio: false,
+                            animation: { duration: 400 },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { callbacks: { label: ctx => `${valueLabel}: ${ctx.formattedValue}` } }
+                            },
+                            scales: horizontal ? { x: valueAxis, y: categoryAxis } : { x: categoryAxis, y: valueAxis }
+                        }
+                    });
                 }
-              }
-            }
-          );
 
-          // ==== Chart 2: Line (Authors) ====
-          const authorCounts = {};
-          books.forEach(b => {
-            authorCounts[b.author] = (authorCounts[b.author] || 0) + 1;
-          });
-          const topAuthors = Object.entries(authorCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5);
-          const authorLabels = topAuthors.map(a => a[0]);
-          const authorData   = topAuthors.map(a => a[1]);
-
-          new Chart(
-            document.getElementById('authorChart').getContext('2d'),
-            {
-              type: 'line',
-              data: {
-                labels: authorLabels,
-                datasets: [{
-                  label: 'Books Written',
-                  data: authorData,
-                  tension: 0.4,
-                  fill: false
-                }]
-              },
-              options: {
-                ...baseOptions,
-                scales: {
-                  x: { title: { display: true, text: 'Author' } },
-                  y: { beginAtZero: true, title: { display: true, text: 'Books' } }
-                }
-              }
-            }
-          );
-
-          // ==== Chart 3: Pie (Rating) ====
-          const ratingCounts = { '1':0,'2':0,'3':0,'4':0,'5':0 };
-          books.forEach(b => {
-            if (ratingCounts[b.rating] !== undefined)
-              ratingCounts[b.rating]++;
-          });
-          const ratingLabels = Object.keys(ratingCounts);
-          const ratingData   = ratingLabels.map(l => ratingCounts[l]);
-
-          // explicit color palette for pie slices
-          const pieColors = [
-            '#FF6384', '#36A2EB', '#FFCE56',
-            '#4BC0C0', '#9966FF'
-          ];
-
-          new Chart(
-            document.getElementById('ratingChart').getContext('2d'),
-            {
-              type: 'pie',
-              data: {
-                labels: ratingLabels,
-                datasets: [{
-                  label: 'Rating Distribution',
-                  data: ratingData,
-                  backgroundColor: pieColors
-                }]
-              },
-              options: {
-                ...baseOptions,
-                plugins: {
-                  ...baseOptions.plugins,
-                  legend: { ...baseOptions.plugins.legend, position: 'bottom' }
-                }
-              }
-            }
-          );
-        });
-    </script>
+                bar('genreChart', data.genres);
+                bar('topRatedChart', data.topRated, { valueLabel: 'Avg rating', max: 5 });
+                bar('authorChart', data.authors);
+                bar('ratingChart', data.ratings, { horizontal: false });
+            });
+        </script>
+    }
 }

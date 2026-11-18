@@ -10,10 +10,11 @@ BookLytics is a personal reading tracker built with **ASP.NET Core MVC**. Log th
 - **Full CRUD** — add, edit, delete, and review books in your personal collection
 - **Sort & filter** — sort by title, author, or rating; filter by liked/not liked
 - **Google Books search** — look up new titles directly from the Google Books API
-- **Analytics dashboard** — Chart.js visualizations of your library:
-  - Books by genre (bar chart)
-  - Top 5 authors by book count (line chart)
-  - Rating distribution (pie chart)
+- **Analytics dashboard** — reading analytics computed server-side by a LINQ `AnalyticsService` (EF Core translates each query to SQL `GROUP BY` / `COUNT` / `AVG`), rendered with Chart.js:
+  - KPI tiles: total books, average rating, % liked, genre and author counts
+  - Auto-generated insights (most-read genre, highest-rated genre, how liked books rate vs. the rest)
+  - Books by genre, highest-rated genres (min. 3 books), top 5 authors, rating distribution
+  - Genre breakdown table (count, average rating, % liked)
 
 ## 🖼️ Screenshots
 
@@ -27,10 +28,12 @@ BookLytics is a personal reading tracker built with **ASP.NET Core MVC**. Log th
 
 ## 🏗️ Tech Stack
 
-- **ASP.NET Core MVC** (.NET 7)
+- **ASP.NET Core MVC** (.NET 10 LTS)
 - **Cookie authentication** (`Microsoft.AspNetCore.Authentication.Cookies`)
-- **JSON file storage** — a lightweight repository pattern backed by flat JSON files, no database setup required
+- **Entity Framework Core 10 + SQLite** — code-first `DbContext`, migrations, a `User` 1→N `Book` relationship with a foreign key, and indexes for per-user queries
+- **Repository pattern + dependency injection** — controllers depend on `IBookRepository` / `IUserService`; EF-backed implementations are registered as scoped services
 - **Google Books API** for external book search
+- **LINQ analytics service** — `IAnalyticsService` aggregates per-user stats in the database, so the browser only receives the summarized numbers
 - **Chart.js** for data visualization
 - **Bootstrap 5** for layout and styling
 
@@ -42,7 +45,7 @@ BookLytics is a personal reading tracker built with **ASP.NET Core MVC**. Log th
 
 ### Prerequisites
 
-- [.NET 7 SDK](https://dotnet.microsoft.com/download/dotnet/7.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - A [Google Books API key](https://console.cloud.google.com/apis/library/books.googleapis.com) (free tier is fine — the app works without one too, just with lower rate limits on search)
 
 ### Setup
@@ -74,9 +77,21 @@ dotnet run
 
 The app will be available at `http://localhost:5000`.
 
+On first run the app applies the EF Core migrations and creates `booklytics.db` (SQLite), then seeds it from `Data/Seed/*.json`. Delete `booklytics.db` to reset to the demo data.
+
+### Working with migrations
+
+The `dotnet-ef` CLI is pinned as a local tool:
+
+```bash
+dotnet tool restore
+dotnet ef migrations add <Name> -o Data/Migrations
+dotnet ef database update
+```
+
 ### Demo login
 
-The app ships with a handful of demo users in `users.json` for trying it out locally (usernames: `aayushi`, `prajay`, `onisha`, `abinaya`). These are seed/demo credentials only — replace `users.json` with your own data before deploying anywhere public.
+The app ships with a handful of demo users in `Data/Seed/users.json` for trying it out locally (usernames: `aayushi`, `prajay`, `onisha`, `abinaya`). These are seed/demo credentials only — replace the seed files with your own data before deploying anywhere public.
 
 ## 📁 Project Structure
 
@@ -84,16 +99,19 @@ The app ships with a handful of demo users in `users.json` for trying it out loc
 BookApp/
 ├── Controllers/       # MVC controllers (Books, Account, Home)
 ├── Models/            # Book, User, ErrorViewModel
-├── Services/          # Repository + external API services
+├── Data/
+│   ├── BookLyticsDbContext.cs   # EF Core DbContext + relationship/index config
+│   ├── DbSeeder.cs              # Applies migrations, seeds demo data
+│   ├── Migrations/              # EF Core code-first migrations
+│   └── Seed/                    # books.json, users.json (demo data)
+├── Services/          # EF repositories, LINQ AnalyticsService, Google Books API client
 ├── Views/             # Razor views
-├── wwwroot/           # Static assets, CSS, JS
-├── books.json         # Book data store (created at first run)
-└── users.json         # Demo user accounts
+└── wwwroot/           # Static assets, CSS, JS
 ```
 
 ## ⚠️ Known Limitations
 
-- Data is stored in flat JSON files rather than a real database — fine for a demo/learning project, not for production use or concurrent writers.
+- SQLite is great for a single-instance demo; a multi-instance deployment would switch the EF provider to SQL Server/PostgreSQL (a one-line change in `Program.cs`).
 - Passwords are hashed with unsalted SHA-256, which is not suitable for production authentication. This project prioritizes simplicity for a class assignment over production-grade security.
 
 ## 👥 Team

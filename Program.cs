@@ -1,5 +1,7 @@
 using System;
+using BookApp.Data;
 using BookApp.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -11,13 +13,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.UseUrls("http://localhost:5000");
 
-builder.Services.AddSingleton<IBookRepository, JsonBookRepository>();
+builder.Services.AddDbContext<BookLyticsDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("BookLytics")));
+builder.Services.AddScoped<IBookRepository, EfBookRepository>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["GoogleBooks:ApiBaseUrl"]!);
 });
-// user service
-builder.Services.AddSingleton<IUserService, JsonUserService>();
+builder.Services.AddScoped<IUserService, EfUserService>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(opts => {
         opts.LoginPath = "/Account/Login";
@@ -30,7 +34,12 @@ builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
 
-JsonBookRepository.InitializeDataFile(app.Environment.ContentRootPath);
+// Apply migrations and seed demo data on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BookLyticsDbContext>();
+    DbSeeder.Initialize(db, app.Environment.ContentRootPath);
+}
 
 if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");

@@ -5,7 +5,6 @@ using BookApp.Models;
 using BookApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using static System.Reflection.Metadata.BlobBuilder;
 
 namespace BookApp.Controllers
 {
@@ -14,11 +13,13 @@ namespace BookApp.Controllers
     {
         private readonly IBookRepository _repo;
         private readonly IGoogleBooksService _gb;
+        private readonly IAnalyticsService _analytics;
 
-        public BooksController(IBookRepository repo, IGoogleBooksService gb)
+        public BooksController(IBookRepository repo, IGoogleBooksService gb, IAnalyticsService analytics)
         {
             _repo = repo;
             _gb = gb;
+            _analytics = analytics;
         }
 
         // GET: /Books
@@ -26,8 +27,7 @@ namespace BookApp.Controllers
         public IActionResult Index(string sortOrder, string filter)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var myBooks = _repo.GetAll()
-                               .Where(b => b.OwnerId == userId);
+            var myBooks = _repo.GetByOwner(userId).AsEnumerable();
 
             //filtering
             filter = filter ?? "all";
@@ -157,10 +157,7 @@ namespace BookApp.Controllers
         public IActionResult Analytics()
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var myBooks = _repo.GetAll()
-                               .Where(b => b.OwnerId == userId)
-                               .ToList();
-            return View(myBooks);
+            return View(_analytics.GetForUser(userId));
         }
 
     }
