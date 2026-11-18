@@ -11,8 +11,6 @@ using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.UseUrls("http://localhost:5000");
-
 builder.Services.AddDbContext<BookLyticsDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("BookLytics")));
 builder.Services.AddScoped<IBookRepository, EfBookRepository>();
