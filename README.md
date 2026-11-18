@@ -93,6 +93,20 @@ dotnet ef database update
 
 The app ships with a handful of demo users in `Data/Seed/users.json` for trying it out locally (usernames: `aayushi`, `prajay`, `onisha`, `abinaya`). These are seed/demo credentials only — replace the seed files with your own data before deploying anywhere public.
 
+## ☁️ Deployment
+
+Every push to `main` runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which builds and publishes the app with .NET 10 and deploys it to **Azure App Service** (Linux, Free F1 tier).
+
+App settings configured in Azure:
+
+| Setting | Value | Why |
+|---|---|---|
+| `ConnectionStrings__BookLytics` | `Data Source=/home/data/booklytics.db` | Keeps the SQLite file in persistent storage outside the deployed folder, so data survives redeploys |
+| `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | `true` | Lets the app see the original HTTPS scheme behind Azure's load balancer |
+| `GoogleBooks__ApiKey` | *(optional)* | Google Books API key for search |
+
+The workflow authenticates with a publish profile stored as the `AZURE_WEBAPP_PUBLISH_PROFILE` repository secret.
+
 ## 📁 Project Structure
 
 ```

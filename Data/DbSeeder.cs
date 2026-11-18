@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using BookApp.Models;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookApp.Data;
@@ -15,6 +16,7 @@ public static class DbSeeder
 {
     public static void Initialize(BookLyticsDbContext db, string contentRootPath)
     {
+        EnsureDatabaseDirectory(db);
         db.Database.Migrate();
 
         if (db.Users.Any())
@@ -33,6 +35,16 @@ public static class DbSeeder
         db.Books.AddRange(books);
         db.SaveChanges();
         tx.Commit();
+    }
+
+    // On Azure the database lives outside the deployed app folder (e.g. /home/data)
+    // so it survives redeploys; make sure that folder exists before SQLite opens it.
+    private static void EnsureDatabaseDirectory(BookLyticsDbContext db)
+    {
+        var dataSource = new SqliteConnectionStringBuilder(db.Database.GetConnectionString()).DataSource;
+        var directory = Path.GetDirectoryName(Path.GetFullPath(dataSource));
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
     }
 
     private static List<T> Load<T>(string path) =>
